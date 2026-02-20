@@ -470,12 +470,12 @@ public class NativeThemePlugin extends Plugin {
         String cutoutBg
     ) {
         // Parse all colors first
-        Integer parsedContentBg = isValidColor(contentBg) ? Color.parseColor(contentBg) : null;
-        Integer parsedStatusBarBg = isValidColor(statusBarBg) ? Color.parseColor(statusBarBg) : null;
-        Integer parsedNavBarBg = isValidColor(navigationBarBg) ? Color.parseColor(navigationBarBg) : null;
-        Integer parsedNavBarLeftBg = isValidColor(navigationBarLeftBg) ? Color.parseColor(navigationBarLeftBg) : null;
-        Integer parsedNavBarRightBg = isValidColor(navigationBarRightBg) ? Color.parseColor(navigationBarRightBg) : null;
-        Integer parsedCutoutBg = isValidColor(cutoutBg) ? Color.parseColor(cutoutBg) : null;
+        Integer parsedContentBg = isValidColor(contentBg) ? parseColorString(contentBg) : null;
+        Integer parsedStatusBarBg = isValidColor(statusBarBg) ? parseColorString(statusBarBg) : null;
+        Integer parsedNavBarBg = isValidColor(navigationBarBg) ? parseColorString(navigationBarBg) : null;
+        Integer parsedNavBarLeftBg = isValidColor(navigationBarLeftBg) ? parseColorString(navigationBarLeftBg) : null;
+        Integer parsedNavBarRightBg = isValidColor(navigationBarRightBg) ? parseColorString(navigationBarRightBg) : null;
+        Integer parsedCutoutBg = isValidColor(cutoutBg) ? parseColorString(cutoutBg) : null;
 
         // Update content background if provided
         if (parsedContentBg != null) {
@@ -585,6 +585,26 @@ public class NativeThemePlugin extends Plugin {
 
     private boolean isValidColor(String color) {
         return color != null && !color.isEmpty();
+    }
+
+    /**
+     * Parse a color string, converting web-format #RRGGBBAA to Android's #AARRGGBB.
+     *
+     * Android's Color.parseColor() expects #AARRGGBB for 8-digit hex colors,
+     * but web/CSS convention uses #RRGGBBAA. This method detects the web format
+     * and converts it before parsing.
+     *
+     * @param color Hex color string (#RGB, #RRGGBB, or #RRGGBBAA in web format)
+     * @return Parsed color int
+     */
+    private int parseColorString(String color) {
+        if (color != null && color.startsWith("#") && color.length() == 9) {
+            // Convert web #RRGGBBAA to Android #AARRGGBB
+            String rgb = color.substring(1, 7);
+            String alpha = color.substring(7, 9);
+            return Color.parseColor("#" + alpha + rgb);
+        }
+        return Color.parseColor(color);
     }
 
     // ============================================
