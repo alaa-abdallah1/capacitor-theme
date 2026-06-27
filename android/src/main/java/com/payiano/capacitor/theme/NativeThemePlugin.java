@@ -73,6 +73,10 @@ public class NativeThemePlugin extends Plugin {
     private int leftInset = 0;
     private int rightInset = 0;
 
+    // Soft keyboard (IME) state, used to lift content above the keyboard.
+    private int keyboardInset = 0;
+    private boolean isKeyboardVisible = false;
+
     // Display cutout tracking
     private int cutoutTop = 0;
     private int cutoutLeft = 0;
@@ -737,12 +741,16 @@ public class NativeThemePlugin extends Plugin {
             (view, insets) -> {
                 Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
                 Insets cutoutInsets = insets.getInsets(WindowInsetsCompat.Type.displayCutout());
+                Insets imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime());
 
                 // Store inset values
                 statusBarHeight = systemBars.top;
                 navigationBarHeight = systemBars.bottom;
                 leftInset = systemBars.left;
                 rightInset = systemBars.right;
+
+                isKeyboardVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
+                keyboardInset = imeInsets.bottom;
 
                 // Track cutout separately
                 cutoutTop = cutoutInsets.top;
@@ -769,10 +777,13 @@ public class NativeThemePlugin extends Plugin {
     private void updateContentPadding(Window window) {
         View contentView = window.findViewById(android.R.id.content);
 
+        // While the keyboard is open, pad the bottom by its height so content lifts above it.
         if (isSafeAreaEnabled) {
-            contentView.setPadding(leftInset, statusBarHeight, rightInset, navigationBarHeight);
+            int bottom = isKeyboardVisible ? Math.max(keyboardInset, navigationBarHeight) : navigationBarHeight;
+            contentView.setPadding(leftInset, statusBarHeight, rightInset, bottom);
         } else {
-            contentView.setPadding(0, 0, 0, 0);
+            int bottom = isKeyboardVisible ? keyboardInset : 0;
+            contentView.setPadding(0, 0, 0, bottom);
         }
     }
 
