@@ -59,17 +59,34 @@ jobs:
           echo "New version: $NEW_VERSION"
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
-      - name: Commit version bump
-        run: |
-          git add package.json package-lock.json
-          git commit -m "chore: release v${{ env.NEW_VERSION }} [skip ci]"
-          git tag -a v${{ env.NEW_VERSION }} -m "Release v${{ env.NEW_VERSION }}"
-          git push origin main --tags
-
+      # Publish BEFORE persisting anything to git. If this fails (e.g. expired
+      # token) no commit/tag is left behind, so the job can simply be re-run.
+      # Skip publish if this exact version is already on the registry, which
+      # makes a re-run after a successful-publish-but-failed-push idempotent.
       - name: Publish to npm
-        run: npm publish --access public
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          if npm view "$PKG_NAME@$NEW_VERSION" version > /dev/null 2>&1; then
+            echo "v$NEW_VERSION is already published — skipping publish."
+          else
+            npm publish --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Persist the version bump to git only after a successful publish. Each op
+      # is idempotent so a partially-completed previous run can still converge.
+      - name: Commit, tag and push version bump
+        run: |
+          git add package.json package-lock.json
+          git diff --cached --quiet || git commit -m "chore: release v${NEW_VERSION} [skip ci]"
+          git push origin HEAD:main
+          if git ls-remote --exit-code --tags origin "v${NEW_VERSION}" > /dev/null 2>&1; then
+            echo "Tag v${NEW_VERSION} already exists on remote — skipping tag."
+          else
+            git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
+            git push origin "v${NEW_VERSION}"
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
