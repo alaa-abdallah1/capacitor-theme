@@ -45,18 +45,29 @@ jobs:
       - name: Build project
         run: npm run build
 
-      - name: Bump patch version
+      # Derive the next version from what is actually live on npm — NOT from
+      # package.json — so a committed-but-never-published version can never
+      # cause a collision, gaps self-heal, and re-runs always converge.
+      - name: Determine next version
         id: version
         run: |
-          # Get current version
-          CURRENT_VERSION=$(node -p "require('./package.json').version")
-          echo "Current version: $CURRENT_VERSION"
+          PKG_NAME=$(node -p "require('./package.json').name")
+          LOCAL_VERSION=$(node -p "require('./package.json').version")
 
-          # Bump patch version (1.0.0 → 1.0.1 → 1.0.2, etc.)
-          npm version patch --no-git-tag-version
+          PUBLISHED_VERSION=$(npm view "$PKG_NAME" version 2>/dev/null || echo "")
 
-          NEW_VERSION=$(node -p "require('./package.json').version")
-          echo "New version: $NEW_VERSION"
+          if [ -z "$PUBLISHED_VERSION" ]; then
+            # Never published — release package.json's current version as-is.
+            NEW_VERSION="$LOCAL_VERSION"
+            echo "Package not yet on npm — releasing v$NEW_VERSION"
+          else
+            # Bump the patch of whatever is live on npm (1.0.4 → 1.0.5).
+            NEW_VERSION=$(node -e "const [a,b,c]=process.argv[1].split('.').map(Number);console.log(\`\${a}.\${b}.\${c+1}\`)" "$PUBLISHED_VERSION")
+            echo "Latest on npm is v$PUBLISHED_VERSION — releasing v$NEW_VERSION"
+          fi
+
+          # Write it into package.json + package-lock.json for publish & commit.
+          npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version > /dev/null
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
       # Publish BEFORE persisting anything to git. If this fails (e.g. expired
